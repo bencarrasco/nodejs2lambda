@@ -21,7 +21,7 @@ resource "aws_iam_role" "lambda_exec" {
   })
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
     ignore_changes  = [assume_role_policy]
   }
 }
