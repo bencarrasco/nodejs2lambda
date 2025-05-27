@@ -19,22 +19,35 @@ resource "aws_iam_role" "lambda_exec" {
       }
     }]
   })
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes  = [assume_role_policy]
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_lambda_function" "nodejs_lambda" {
   function_name = "nodejs-express-lambda"
-  filename      = "app.zip"             # Make sure your zip is named app.zip and is in the same folder
-  handler       = "lambda.handler"      # matches your lambda.js export
+  filename      = "app.zip"
+  handler       = "lambda.handler"
   runtime       = "nodejs18.x"
   role          = aws_iam_role.lambda_exec.arn
   timeout       = 15
 
   source_code_hash = filebase64sha256("app.zip")
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_apigatewayv2_api" "http_api" {
@@ -43,11 +56,11 @@ resource "aws_apigatewayv2_api" "http_api" {
 }
 
 resource "aws_apigatewayv2_integration" "lambda_integration" {
-  api_id                  = aws_apigatewayv2_api.http_api.id
-  integration_type        = "AWS_PROXY"
-  integration_uri         = aws_lambda_function.nodejs_lambda.invoke_arn
-  integration_method      = "POST"
-  payload_format_version  = "2.0"
+  api_id                 = aws_apigatewayv2_api.http_api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.nodejs_lambda.invoke_arn
+  integration_method     = "POST"
+  payload_format_version = "2.0"
 }
 
 resource "aws_apigatewayv2_route" "default_route" {
