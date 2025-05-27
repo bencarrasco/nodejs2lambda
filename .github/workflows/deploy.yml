@@ -24,7 +24,6 @@ jobs:
     - name: Build and zip Lambda package
       run: |
         zip -r app.zip . -x "*.git*" "node_modules/aws-sdk/*" "app.zip"
-      # Note: AWS SDK is pre-installed on Lambda, so excluding it reduces package size
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v2
@@ -33,6 +32,27 @@ jobs:
 
     - name: Terraform Init
       run: terraform init
+
+    - name: Import existing IAM role if present
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_REGION: ${{ secrets.AWS_REGION }}
+      run: |
+        ROLE_NAME="lambda_exec_role"
+        # Check if IAM role exists
+        if aws iam get-role --role-name $ROLE_NAME --region $AWS_REGION > /dev/null 2>&1; then
+          echo "IAM role $ROLE_NAME exists."
+          # Check if role is already in terraform state
+          if ! terraform state list | grep -q "aws_iam_role.lambda_exec"; then
+            echo "Importing $ROLE_NAME into Terraform state..."
+            terraform import aws_iam_role.lambda_exec $ROLE_NAME
+          else
+            echo "$ROLE_NAME already imported in Terraform state."
+          fi
+        else
+          echo "IAM role $ROLE_NAME does not exist, skipping import."
+        fi
 
     - name: Terraform Apply
       env:
